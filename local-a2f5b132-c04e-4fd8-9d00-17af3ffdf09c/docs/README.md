@@ -1,0 +1,1 @@
+A simple 5x5 display grid with digit tiles. Move digits by tapping to pick and tapping adjacent space to slide, or drag across a row to shift. An AI occasionally blocks a spot with a neutral tile.
