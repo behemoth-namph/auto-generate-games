@@ -1,14 +1,14 @@
-# Maze Runner Grid
+# Portal Tile Swap
 
 ## Meta
 
-**Game Name:** Maze Runner Grid
+**Game Name:** Portal Tile Swap
 **Game Type:** board
 **Player Mode:** player_vs_ai
 **Players:**
   **Human:** 1
   **Ai:** 1
-**Core Mechanic:** A deterministic turn-based maze puzzle on a 9x9 grid where the human runner seeks a path to the exit by rotating and placing path tiles. The AI intermittently adds wandering walls to complicate connectivity, requiring the human to adapt the route in real-time.
+**Core Mechanic:** Players swap adjacent tiles on a 6x6 grid to align matching portals; after each move, the AI inserts blocking tiles to impede future moves.
 **Session Minutes:**
   - 5
   - 15
@@ -19,9 +19,13 @@
   **Type:** grid
   **Topology:** square
   **Dimensions:**
-    - 9
-    - 9
-  **Neighbors:** for grid: ['up','down','left','right']
+    - 6
+    - 6
+  **Neighbors:**
+    - up
+    - down
+    - left
+    - right
 **Entities:**
   **Name:** Player
   **Properties:**
@@ -46,17 +50,23 @@
     **Is Thinking:** False
   **Name:** Board
   **Properties:**
-    **Grid:** 9x9 array of path/wall tiles; each cell stores tile type, rotation, and occupancy
-    **Rows:** 9
-    **Cols:** 9
+    **Grid:** 2D array of portal IDs representing tile types
+    **Rows:** 6
+    **Cols:** 6
   **Initial State:**
-
+    **Grid:**
+      - ['A', 'B', 'C', 'A', 'D', 'B']
+      - ['C', 'A', 'D', 'B', 'A', 'C']
+      - ['B', 'C', 'A', 'D', 'C', 'A']
+      - ['D', 'B', 'C', 'A', 'B', 'D']
+      - ['A', 'D', 'B', 'C', 'D', 'A']
+      - ['C', 'A', 'D', 'B', 'C', 'A']
   **Name:** Game
   **Properties:**
-    **Current Player:** 1
-    **Status:** playing
-    **Move Count:** 0
-    **Last Move:** None
+    **Current Player:** int (1 or 2)
+    **Status:** string (playing|human_wins|ai_wins|draw)
+    **Move Count:** int
+    **Last Move:** object
   **Initial State:**
     **Current Player:** 1
     **Status:** playing
@@ -65,16 +75,15 @@
 ## Mechanics
 
 **Setup:**
-  **Initial Placement:** Runner token placed at (0,0); exit at (8,8); initial path tiles arranged to form at least one valid route; AI wandering walls inactive until after the first few human moves
+  **Initial Placement:** Starting grid is predefined for determinism; no randomization on load. AI starts with the standard minimax-based evaluation. Blocking tiles will be inserted after each human move by the AI.
   **Starting Player Rule:** human
 **Move Validation:**
   **Must Place On Empty:** True
   **Validity Checks:**
-    - placement maintains at least one valid path from runner to exit after the move
-    - tile rotation is within allowed states
-    - no overlapping tiles or tiles placed outside the 9x9 grid
+    - swap_is_adjacent
+    - swap_results_in_valid_alignment_considering_portal_types
   **Validation Algorithm:**
-    **Name:** path_check
+    **Name:** swap_adjacent
     **Inputs:**
       - row
       - col
@@ -89,33 +98,32 @@
         - down
         - left
         - right
-      **Min Chain Length:** 1
+      **Min Chain Length:** 2
       **Require Bounded:** True
       **Gravity:** False
     **Steps:**
-      - Identify target cell; ensure empty slot
-      - Simulate tile placement/rotation
-      - Compute connectivity from runner to exit
-      - If connected, return is_valid = true with a preview of resulting path
+      - Verify target cell is within bounds
+      - Verify target cell is adjacent to source cell
+      - Simulate swap and check if any portal alignment is formed according to game rules
+      - Return is_valid and optional preview of resulting grid
 **Movement:**
-  **Allowed:** placement|rotate
-  **Directions:**
-    - rotate_tile
-    - drag_to_place
-  **Range:** 1
-**Capture:**
-  **Type:** area_conversion
+  **Allowed:** swap
   **Directions:**
     - up
     - down
     - left
     - right
+  **Range:** 1
+**Capture:**
+  **Type:** block_placement
+  **Directions:**
+    - (None)
   **Require Sandwich:** False
   **Chain Capture:** False
-  **Min Chain Length:** 2
-  **Result:** AI wandering walls are added to random empty tiles; paths may be closed or opened
+  **Min Chain Length:** 0
+  **Result:** After a human move, AI places a blocking tile on the board to hinder future moves.
   **Capture Algorithm:**
-    **Name:** apply_wandering_walls
+    **Name:** apply_block_tile
     **Inputs:**
       - row
       - col
@@ -126,36 +134,31 @@
       **Affected Count:** int
     **Parameters:**
       **Directions:**
-        - up
-        - down
-        - left
-        - right
-      **Min Chain Length:** 2
+        - (None)
+      **Min Chain Length:** 0
       **Require Bounded:** False
     **Steps:**
-      - Increment move counter to determine wandering interval
-      - Choose candidate empty cells based on a simple heuristic
-      - Place wall tiles in chosen cells
-      - Update board state and recalculate connectivity where needed
+      - AI selects an empty cell using its algorithm under current seed
+      - Place blocking tile at chosen cell
+      - Mark tile as blocking so it cannot be swapped or treated as a normal portal
+      - Update board state
 **Turn Flow:**
   **Switch After Move:** True
   **Pass If No Valid Move:** True
   **Extra Turn Conditions:** end game after two consecutive passes
 **Scoring:**
-  **Method:** path_connectivity
-  **Winner Determination:** If human runner reaches exit, human wins; if exit becomes permanently unreachable due to walls and AI cannot create a new valid path, AI wins; draw if no legal moves exist for both players during a full round
+  **Method:** points
+  **Winner Determination:** Player with higher score after no legal moves remain wins; if equal, draw
 
 ## Turns
 
 **Order:** Human (Player 1) → AI (Player 2) → repeat
-**Max Time Seconds:** 30
+**Max Time Seconds:** 15
 **Actions:**
   **Name:** player_move
   **Parameters:**
-    - tile_id
-    - rotation
-    - target_row
-    - target_col
+    - row
+    - col
   **Condition:** current_player == 1 AND game.status == playing AND [move validity conditions]
   **Result:** Apply mechanics.move_validation and mechanics.capture; update state; switch to AI; check end conditions
   **Name:** ai_move
@@ -173,7 +176,7 @@
 
 
 **Id:** R1
-**Text:** Clear, testable rule with input/output MUST.
+**Text:** Clear, testable rule with input/output (MUST / SHOULD / MAY) and deterministic outcomes.
 **Type:** core|validation|optional
 
 
@@ -183,33 +186,33 @@
 
 
 **Id:** R_AI_2
-**Text:** AI with difficulty 'easy' MUST use a simple heuristic without deep search.
+**Text:** AI with difficulty 'easy' MUST use [simple algorithm description].
 **Type:** core
 
 
 **Id:** R_AI_3
-**Text:** AI with difficulty 'medium' MUST use a moderate-depth search strategy.
+**Text:** AI with difficulty 'medium' MUST use [moderate algorithm description].
 **Type:** core
 
 
 **Id:** R_AI_4
-**Text:** AI with difficulty 'hard' MUST use an advanced search with pruning and lookahead.
+**Text:** AI with difficulty 'hard' MUST use [advanced algorithm description].
 **Type:** core
 
 
 ## End Conditions
 
 **Win:**
-  **Condition:** human_reaches_exit
-  **Check Logic:** If the runner token occupies the exit cell (8,8) on human turn or after a valid move
+  **Condition:** Human has strictly more points and AI has no legal moves
+  **Check Logic:** After a turn, evaluate scores; if AI has zero legal moves and human score is greater, human wins
   **Priority:** immediate
 **Lose:**
-  **Condition:** ai_blocks_all_paths
-  **Check Logic:** If there exists no valid path from runner to exit and human has exhausted legal moves
+  **Condition:** AI has strictly more points than Human
+  **Check Logic:** At evaluation, if ai_score > human_score
   **Priority:** immediate
 **Draw:**
-  **Condition:** no_legal_moves_after_round
-  **Check Logic:** If after a full cycle both players have no legal moves
+  **Condition:** Scores equal and no legal moves for both players
+  **Check Logic:** If both players have no legal moves and scores tie
   **Priority:** end_turn
 
 ## Ui
@@ -221,14 +224,14 @@
   - Game status message
   - Restart button
 **Interactions:**
-  - Click/tap to place or rotate a tile
+  - Click/tap to make move
   - Hover for preview/hints
   - Click restart button
 **Feedback:**
   - Highlight valid moves
   - Animate AI move
   - Show AI thinking state
-  - Display winner/loser/draw message
+  - Display winner message
 **Board Style:**
   **Cell Size:** 48
   **Grid Line Color:** #333333
@@ -262,19 +265,19 @@
 **Then:** Expected result with specific values
 
 
-**Given:** A valid placement exists per game rules
-**When:** Player places or rotates a tile
-**Then:** Board updates accordingly and path validity is re-evaluated
+**Given:** A valid swap exists per game rules
+**When:** Player performs a valid swapping move
+**Then:** Board updates by swapping the two tiles; move_count increments; last_move recorded
 
 
 **Given:** AI's turn, difficulty='easy'
 **When:** AI calculates move
-**Then:** AI uses simple heuristic and returns a valid move within 2s
+**Then:** AI uses simple algorithm and makes a valid move within 2 seconds
 
 
 **Given:** AI can win in 1 move
 **When:** AI's turn, difficulty='medium' or 'hard'
-**Then:** AI MUST execute a winning or blocking move if available
+**Then:** AI MUST attempt a winning or blocking move per its algorithm
 
 
 **Given:** Human can win next turn

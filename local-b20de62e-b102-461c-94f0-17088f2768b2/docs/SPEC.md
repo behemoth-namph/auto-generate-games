@@ -1,17 +1,17 @@
-# Space Station Switch
+# Token Trail
 
 ## Meta
 
-**Game Name:** Space Station Switch
+**Game Name:** Token Trail
 **Game Type:** board
 **Player Mode:** player_vs_ai
 **Players:**
   **Human:** 1
   **Ai:** 1
-**Core Mechanic:** Airlock tokens must be routed to docking stations on an 8x8 grid. Players move a token to a neighboring empty cell by clicking, or drag along a straight line to an empty cell. The AI deploys a meteor token that temporarily blocks a cell to disrupt routes.
+**Core Mechanic:** A path-building puzzle on a 9x9 grid where players slide same-color tokens into adjacent empty spaces to connect their start area to a goal token; the AI may occasionally place a temporary wall to block paths.
 **Session Minutes:**
   - 5
-  - 15
+  - 20
 
 ## State
 
@@ -19,9 +19,13 @@
   **Type:** grid
   **Topology:** square
   **Dimensions:**
-    - 8
-    - 8
-  **Neighbors:** ['up','down','left','right']
+    - 9
+    - 9
+  **Neighbors:**
+    - up
+    - down
+    - left
+    - right
 **Entities:**
   **Name:** Player
   **Properties:**
@@ -46,18 +50,17 @@
     **Is Thinking:** False
   **Name:** Board
   **Properties:**
-    **Grid:** 2D array of cells with occupant reference and blocking state
-    **Rows:** 8
-    **Cols:** 8
+    **Grid:** 9x9 grid with cells storing occupantId|null and token color
+    **Rows:** 9
+    **Cols:** 9
   **Initial State:**
 
   **Name:** Game
   **Properties:**
-    **Current Player:** 1
-    **Status:** playing
-    **Move Count:** 0
-    **Last Move:**
-
+    **Current Player:** int
+    **Status:** string
+    **Move Count:** int
+    **Last Move:** object
   **Initial State:**
     **Current Player:** 1
     **Status:** playing
@@ -66,25 +69,24 @@
 ## Mechanics
 
 **Setup:**
-  **Initial Placement:** Airlock tokens placed on predefined start zones; docking stations fixed targets; meteor token pool controlled by AI with a limited duration (temporary block).
+  **Initial Placement:** Starting tokens are placed on designated start zones for each color. The AI may intermittently insert a temporary wall token on its turn.
   **Starting Player Rule:** human
 **Move Validation:**
   **Must Place On Empty:** True
   **Validity Checks:**
-    - destination is adjacent for single-step moves
-    - destination is in same row or column for straight-line drag moves and is empty
-    - path from source to destination is unobstructed by other tokens, except meteor if applicable
+    - target cell must be empty
+    - movement must be a single orthogonal slide to an adjacent cell
+    - selected token color must match current player
   **Validation Algorithm:**
-    **Name:** path_check
+    **Name:** grid_scan
     **Inputs:**
       - row
       - col
       - current_player
       - board
     **Outputs:**
-      **Is Valid:** True
-      **Preview:**
-
+      **Is Valid:** boolean
+      **Preview:** object
     **Parameters:**
       **Directions:**
         - up
@@ -92,15 +94,16 @@
         - left
         - right
       **Min Chain Length:** 1
-      **Require Bounded:** True
+      **Require Bounded:** False
       **Gravity:** False
     **Steps:**
-      - Confirm source contains current player's token
-      - If destination is adjacent, ensure empty
-      - If destination is along a straight line, ensure all intermediate cells are empty (excluding meteor blocking when applicable)
-      - Destination must be a docking-accessible empty cell or a valid path segment
+      - bounds check
+      - target cell empty
+      - movement is one-step orthogonal
+      - token color matches current player
+      - update preview if requested
 **Movement:**
-  **Allowed:** step|slide
+  **Allowed:** slide
   **Directions:**
     - up
     - down
@@ -114,15 +117,22 @@
   **Require Sandwich:** False
   **Chain Capture:** False
   **Min Chain Length:** 0
-  **Result:** No captures occur; only movement and temporary blocking by meteor
+  **Result:** no capture occurs
   **Capture Algorithm:**
     **Name:** none
     **Inputs:**
-      - (None)
+      - row
+      - col
+      - current_player
+      - board
+      - parameters
     **Outputs:**
       **Affected Count:** 0
     **Parameters:**
-
+      **Directions:**
+        - (None)
+      **Min Chain Length:** 0
+      **Require Bounded:** False
     **Steps:**
       - (None)
 **Turn Flow:**
@@ -130,8 +140,8 @@
   **Pass If No Valid Move:** True
   **Extra Turn Conditions:** end game after two consecutive passes
 **Scoring:**
-  **Method:** count_pieces_to_docking
-  **Winner Determination:** Player who docks all airlock tokens first wins; if both achieve docking, winner is the one with fewer moves; otherwise draw
+  **Method:** path_completion
+  **Winner Determination:** A player wins when a connected path exists from their start zone to their goal token; if both sides achieve a path, the player with the longer valid path wins; if neither can progress and both pass, the game is a draw.
 
 ## Turns
 
@@ -140,17 +150,16 @@
 **Actions:**
   **Name:** player_move
   **Parameters:**
-    - sourceRow
-    - sourceCol
-    - destRow
-    - destCol
+    - row
+    - col
+    - token_id
   **Condition:** current_player == 1 AND game.status == playing AND move is valid per mechanics.move_validation
-  **Result:** Apply mechanics.move_validation; update state; apply meteor blocking logic if meteor is deployed; update last_move; switch to AI; check end conditions
+  **Result:** Apply mechanics.move_validation and mechanics.capture; update state; switch to AI; check end conditions
   **Name:** ai_move
   **Parameters:**
     - (None)
   **Condition:** current_player == 2 AND game.status == playing
-  **Result:** AI computes move with minimax; apply mechanics.move_validation and apply meteor deployment; update state; switch to human; check end conditions
+  **Result:** AI calculates move using algorithm; apply mechanics.move_validation and mechanics.capture; update state; switch to human; check end conditions
   **Name:** restart
   **Parameters:**
     - (None)
@@ -161,7 +170,7 @@
 
 
 **Id:** R1
-**Text:** MUST define deterministic, replayable rules; UI reads selectors; no gameplay logic duplication in UI components.
+**Text:** MUST define clear preconditions, legality, and postconditions for each action; illegal actions MUST yield immediate error {"errorCode", "message"}.
 **Type:** core
 
 
@@ -171,33 +180,33 @@
 
 
 **Id:** R_AI_2
-**Text:** AI with difficulty 'easy' MUST use a simple greedy move heuristic.
+**Text:** AI with difficulty 'easy' MUST use a simple token-neighborhood heuristic and a shallow search.
 **Type:** core
 
 
 **Id:** R_AI_3
-**Text:** AI with difficulty 'medium' MUST use a moderate-depth minimax search with pruning.
+**Text:** AI with difficulty 'medium' MUST use a moderate search strategy balancing path building and blocking.
 **Type:** core
 
 
 **Id:** R_AI_4
-**Text:** AI with difficulty 'hard' MUST use an advanced search with lookahead and blocking awareness.
+**Text:** AI with difficulty 'hard' MUST use an advanced look-ahead algorithm with seed-based determinism.
 **Type:** core
 
 
 ## End Conditions
 
 **Win:**
-  **Condition:** All airlock tokens are on their docking stations
-  **Check Logic:** Each airlock token must occupy its corresponding docking target; all docking conditions satisfied
+  **Condition:** path_from_start_to_goal_exists_for_current_player
+  **Check Logic:** Check if there's a continuous chain of current player's tokens from their start zone to their goal token
   **Priority:** immediate
 **Lose:**
-  **Condition:** Time limit exceeded or irreversible deadlock
-  **Check Logic:** If a player cannot make a legal move within the time window and no progress is possible
-  **Priority:** end_turn
+  **Condition:** path_from_start_to_goal_exists_for_opponent
+  **Check Logic:** Check if opponent has such a path
+  **Priority:** immediate
 **Draw:**
-  **Condition:** No legal moves exist for both players for a full turn cycle
-  **Check Logic:** Both players have no valid moves within their time window
+  **Condition:** no_legal_moves_for_both_or_timeout
+  **Check Logic:** if both players have no legal moves or both exceed time with no progress
   **Priority:** end_turn
 
 ## Ui
@@ -209,16 +218,14 @@
   - Game status message
   - Restart button
 **Interactions:**
-  - Click to move a token to an adjacent empty cell
-  - Drag to move along straight line to an empty cell
-  - Hover for hints
+  - Click/tap to make move
+  - Hover for preview/hints
   - Click restart button
 **Feedback:**
   - Highlight valid moves
   - Animate AI move
   - Show AI thinking state
-  - Display winner/loser/draw modal
-  - Show meteor blocking animation
+  - Display winner message
 **Board Style:**
   **Cell Size:** 48
   **Grid Line Color:** #333333
@@ -252,24 +259,24 @@
 **Then:** Expected result with specific values
 
 
-**Given:** A valid move exists per game rules
-**When:** Player performs a valid move
-**Then:** State updates accordingly and AI turn starts
+**Given:** A valid capture exists per game rules
+**When:** Player performs a capturing move
+**Then:** Captured pieces/territory update exactly as defined
 
 
 **Given:** AI's turn, difficulty='easy'
 **When:** AI calculates move
-**Then:** AI uses simple greedy move within 2s
+**Then:** AI uses simple algorithm, makes valid move within 2s
 
 
-**Given:** All airlock tokens docked
-**When:** Game ends
-**Then:** Player wins
+**Given:** AI can win in 1 move
+**When:** AI's turn, difficulty='medium' or 'hard'
+**Then:** AI MUST execute winning move
 
 
-**Given:** No legal moves for both players
-**When:** Turn passes
-**Then:** Draw result is declared
+**Given:** Human can win next turn
+**When:** AI's turn, difficulty='medium' or 'hard'
+**Then:** AI MUST block human's winning move
 
 
 ## Config
