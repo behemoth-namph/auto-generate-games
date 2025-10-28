@@ -1,17 +1,17 @@
-# Subway Tile Solve
+# Patchwork Grid
 
 ## Meta
 
-**Game Name:** Subway Tile Solve
+**Game Name:** Patchwork Grid
 **Game Type:** board
 **Player Mode:** player_vs_ai
 **Players:**
   **Human:** 1
   **Ai:** 1
-**Core Mechanic:** Build a valid subway route on a 7x7 grid by sliding track tiles toward a connected path. Click a tile to pick it up and drag to a neighboring empty cell to move. AI places a tunnel obstacle periodically.
+**Core Mechanic:** Players move patch tokens across an 8x8 grid by selecting a patch and sliding it along a straight line into an empty slot, with taps or drags used to place patches.
 **Session Minutes:**
   - 5
-  - 15
+  - 20
 
 ## State
 
@@ -19,8 +19,8 @@
   **Type:** grid
   **Topology:** square
   **Dimensions:**
-    - 7
-    - 7
+    - 8
+    - 8
   **Neighbors:**
     - up
     - down
@@ -32,16 +32,15 @@
     **Id:** 1
     **Type:** human
     **Color:** #000000
-    **Pieces Played:** 0
+    **Pieces Played:** int
   **Initial State:**
     **Pieces Played:** 0
   **Name:** AI
   **Properties:**
-    **Algorithm:** minimax
-    **Difficulty:** medium
-    **Depth:** 4
-    **Response Delay Ms:** 500
-    **Is Thinking:** False
+    **Id:** 2
+    **Type:** ai
+    **Color:** #ffffff
+    **Pieces Played:** int
   **Initial State:**
     **Algorithm:** minimax
     **Difficulty:** medium
@@ -50,34 +49,36 @@
     **Is Thinking:** False
   **Name:** Board
   **Properties:**
-    **Grid:** 7x7 tile matrix with track slots; null for empty
-    **Rows:** 7
-    **Cols:** 7
+    **Grid:** 2D array of cells with occupantId|null and patch type info
+    **Rows:** int
+    **Cols:** int
   **Initial State:**
 
   **Name:** Game
   **Properties:**
-    **Current Player:** 1
-    **Status:** playing
-    **Move Count:** 0
-    **Last Move:** None
+    **Current Player:** int (1 or 2)
+    **Status:** string (playing|human_wins|ai_wins|draw)
+    **Move Count:** int
+    **Last Move:** object
   **Initial State:**
     **Current Player:** 1
     **Status:** playing
     **Move Count:** 0
-    **Last Move:** None
+    **Last Move:**
+
 
 ## Mechanics
 
 **Setup:**
-  **Initial Placement:** Empty board with a predefined starting path of track tiles and a few tunnel obstacles; AI will place tunnels periodically after a human move.
+  **Initial Placement:** Each player starts with a small reserve of patches placed in their home area; starting patches are visible to both players.
   **Starting Player Rule:** human
 **Move Validation:**
   **Must Place On Empty:** True
   **Validity Checks:**
-    - tile must be adjacent to existing path or connected segment
-    - tile orientation must align with existing path
-    - destination cell must be empty
+    - destination cell is empty
+    - path from selected patch to destination is a straight line and unobstructed
+    - destination is within the 8x8 grid bounds
+    - move respects line-slide rules (patch slides along a straight path until destination)
   **Validation Algorithm:**
     **Name:** path_check
     **Inputs:**
@@ -86,7 +87,7 @@
       - current_player
       - board
     **Outputs:**
-      **Is Valid:** True
+      **Is Valid:** boolean
       **Preview:** object
     **Parameters:**
       **Directions:**
@@ -98,9 +99,12 @@
       **Require Bounded:** True
       **Gravity:** False
     **Steps:**
-      - Ensure target cell is empty
-      - Check adjacency to existing path
-      - Validate path connectivity after placement
+      - Identify selected patch location.
+      - Compute straight-line path to target.
+      - Verify all intermediate cells are empty.
+      - Verify target cell is empty.
+      - If valid, return is_valid=true and a move-preview object.
+      - If invalid, return is_valid=false and error feedback.
 **Movement:**
   **Allowed:** slide
   **Directions:**
@@ -108,20 +112,17 @@
     - down
     - left
     - right
-  **Range:** 1
+  **Range:** any
 **Capture:**
-  **Type:** obstacle_generation
+  **Type:** none
   **Directions:**
-    - up
-    - down
-    - left
-    - right
+    - (None)
   **Require Sandwich:** False
   **Chain Capture:** False
   **Min Chain Length:** 0
-  **Result:** When AI places a tunnel, it becomes an obstacle blocking path continuity; path checks must account for obstacles
+  **Result:** No capture mechanics in this patch-based grid.
   **Capture Algorithm:**
-    **Name:** apply_tunnel_block
+    **Name:** none
     **Inputs:**
       - row
       - col
@@ -129,26 +130,21 @@
       - board
       - parameters
     **Outputs:**
-      **Blocked Count:** int
+      **Affected Count:** 0
     **Parameters:**
       **Directions:**
-        - up
-        - down
-        - left
-        - right
+        - (None)
       **Min Chain Length:** 0
       **Require Bounded:** False
     **Steps:**
-      - Add obstacle tile at specified coordinate
-      - Recompute path validity for both players
-      - If human path still exists, continue; else AI might win
+      - (None)
 **Turn Flow:**
   **Switch After Move:** True
   **Pass If No Valid Move:** True
   **Extra Turn Conditions:** end game after two consecutive passes
 **Scoring:**
-  **Method:** territory|path_completion
-  **Winner Determination:** Human wins when a connected path from left to right exists; AI wins when it blocks all possible human paths or completes its objective.
+  **Method:** points
+  **Winner Determination:** player with higher accumulated points (patches placed); draw if equal
 
 ## Turns
 
@@ -157,11 +153,11 @@
 **Actions:**
   **Name:** player_move
   **Parameters:**
-    - tile_id
-    - target_row
-    - target_col
-  **Condition:** current_player == 1 AND game.status == playing AND move is valid
-  **Result:** Apply mechanics.move_validation and mechanics.capture; update state; switch to AI; check end conditions
+    - selectedPatchId
+    - destinationRow
+    - destinationCol
+  **Condition:** current_player == 1 AND game.status == playing AND move is legal per mechanics.move_validation
+  **Result:** Apply mechanics.move_validation and mechanics.capture; update game state; switch to AI; check end conditions
   **Name:** ai_move
   **Parameters:**
     - (None)
@@ -177,7 +173,7 @@
 
 
 **Id:** R1
-**Text:** Clear, testable rule with input/output MUST define deterministic gameplay; actions and outcomes MUST be replayable from logs.
+**Text:** MUST define deterministic, replayable actions with explicit input/output for each action.
 **Type:** core
 
 
@@ -187,33 +183,33 @@
 
 
 **Id:** R_AI_2
-**Text:** AI with difficulty 'easy' MUST use a simple heuristic move selection.
+**Text:** AI with difficulty 'easy' MUST use a simple, deterministic heuristic.
 **Type:** core
 
 
 **Id:** R_AI_3
-**Text:** AI with difficulty 'medium' MUST use a moderate search algorithm with limited depth.
+**Text:** AI with difficulty 'medium' MUST use a moderate-depth search strategy.
 **Type:** core
 
 
 **Id:** R_AI_4
-**Text:** AI with difficulty 'hard' MUST use an advanced depth-search strategy with pruning.
+**Text:** AI with difficulty 'hard' MUST use an advanced look-ahead strategy with pruning.
 **Type:** core
 
 
 ## End Conditions
 
 **Win:**
-  **Condition:** human_path_complete
-  **Check Logic:** A connected path exists from left edge to right edge using adjacent tiles
+  **Condition:** human_score > ai_score
+  **Check Logic:** End after all turns or when scoring determines human ahead at end of round
   **Priority:** immediate
 **Lose:**
-  **Condition:** human_path_blocked
-  **Check Logic:** No possible left-to-right path exists for human due to tunnels/tiles
+  **Condition:** ai_score > human_score
+  **Check Logic:** End after all turns or when scoring determines AI ahead at end of round
   **Priority:** immediate
 **Draw:**
-  **Condition:** no_legal_moves_for_both
-  **Check Logic:** Both players have no legal moves on their turn
+  **Condition:** human_score == ai_score
+  **Check Logic:** End when no legal moves remain and scores are tied
   **Priority:** end_turn
 
 ## Ui
@@ -249,6 +245,8 @@
   **Flip Animation:**
     **Enabled:** True
     **Duration Ms:** 180
+**Accessibility:**
+  **Aria Labels:** True
 
 ## Technical
 
@@ -268,7 +266,7 @@
 
 **Given:** A valid capture exists per game rules
 **When:** Player performs a capturing move
-**Then:** Captured pieces/territory update exactly as defined
+**Then:** Captured pieces update exactly as defined
 
 
 **Given:** AI's turn, difficulty='easy'
