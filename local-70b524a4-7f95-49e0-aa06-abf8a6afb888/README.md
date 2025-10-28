@@ -1,0 +1,1 @@
+In Rock Paper Scissors, two players secretly pick one of three gestures: rock, paper, or scissors. Both reveal at the same time; rock crushes scissors, scissors cuts paper, and paper covers rock. Win, lose, or tie; play multiple rounds to determine a winner.
