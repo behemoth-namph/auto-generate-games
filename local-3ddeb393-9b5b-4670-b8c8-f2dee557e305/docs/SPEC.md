@@ -1,17 +1,17 @@
-# Farm Field Flip
+# Coin Stack Circuit
 
 ## Meta
 
-**Game Name:** Farm Field Flip
+**Game Name:** Coin Stack Circuit
 **Game Type:** board
 **Player Mode:** player_vs_ai
 **Players:**
   **Human:** 1
   **Ai:** 1
-**Core Mechanic:** On a 6x6 grid, players flip or slide crop tokens to align full rows of identical vegetables while the AI farmer introduces pests as obstacles to avoid.
+**Core Mechanic:** A 6x6 grid where you sort coins into correct stacks by moving coins to adjacent empty cells or sliding within a row to form complete stacks. The AI occasionally spills extra coins that must be re-sorted.
 **Session Minutes:**
-  - 10
-  - 20
+  - 5
+  - 60
 
 ## State
 
@@ -21,18 +21,14 @@
   **Dimensions:**
     - 6
     - 6
-  **Neighbors:**
-    - up
-    - down
-    - left
-    - right
+  **Neighbors:** directions: [up, down, left, right]
 **Entities:**
   **Name:** Player
   **Properties:**
     **Id:** 1
     **Type:** human
-    **Color:** #228B22
-    **Pieces Played:** 0
+    **Color:** #1e90ff
+    **Pieces Played:** int
   **Initial State:**
     **Pieces Played:** 0
   **Name:** AI
@@ -42,6 +38,8 @@
     **Depth:** 4
     **Response Delay Ms:** 500
     **Is Thinking:** False
+    **Color:** #ff4500
+    **Pieces Played:** int
   **Initial State:**
     **Algorithm:** minimax
     **Difficulty:** medium
@@ -50,9 +48,9 @@
     **Is Thinking:** False
   **Name:** Board
   **Properties:**
-    **Grid:** 2D array of cells with occupantId or null and tile type (crop or pest)
-    **Rows:** 6
-    **Cols:** 6
+    **Grid:** 2D array of cells; each cell stores occupantId|null and stack information
+    **Rows:** int
+    **Cols:** int
   **Initial State:**
 
   **Name:** Game
@@ -65,76 +63,88 @@
     **Current Player:** 1
     **Status:** playing
     **Move Count:** 0
+    **Last Move:** None
 
 ## Mechanics
 
 **Setup:**
-  **Initial Placement:** Starting distribution of crop tokens across the 6x6 grid is provided by deterministic seed; no pests present at start.
+  **Initial Placement:** Coins distributed across the 6x6 grid into color-coded stacks; stacks expect specific colors. AI may spill extra coins on its turns.
   **Starting Player Rule:** human
 **Move Validation:**
   **Must Place On Empty:** True
   **Validity Checks:**
-    - destination is within board bounds
-    - destination is adjacent for slide or is the same cell for a flip action target
-    - target cell is empty for slides; flip targets a tile to a different vegetable type
-    - flip result must be a valid vegetable state (e.g., cycle within allowed types)
+    - target cell must be empty
+    - move must be to an adjacent cell or a legal row slide
+    - move must not violate stack capacity or color constraints
   **Validation Algorithm:**
-    **Name:** adjacency_check
+    **Name:** grid_scan
     **Inputs:**
       - row
       - col
       - current_player
       - board
     **Outputs:**
-      **Is Valid:** True
-      **Preview:** object or array if applicable
+      **Is Valid:** boolean
+      **Preview:** object
     **Parameters:**
       **Directions:**
         - up
         - down
         - left
         - right
-      **Min Chain Length:** 0
-      **Require Bounded:** False
+      **Min Chain Length:** 1
+      **Require Bounded:** True
       **Gravity:** False
     **Steps:**
-      - Clamp coordinates to board bounds
-      - Verify destination is adjacent for slide or valid flip target
-      - Ensure destination cell is empty (for slide) or that flip result is allowed
-      - If flip, compute next vegetable type and ensure legality
+      - Identify target coordinates
+      - Verify occupancy is empty
+      - Check adjacency or row-slide legality
+      - Check color/stack compatibility
+      - Return validity and preview of resulting state
 **Movement:**
-  **Allowed:** slide|flip
+  **Allowed:** slide|move
   **Directions:**
     - up
     - down
     - left
     - right
-  **Range:** 1 for both slide and flip (single-tile interactions)
+  **Range:** 1 (step) for individual moves; slides may traverse multiple cells within a row under rule checks
 **Capture:**
-  **Type:** none
+  **Type:** area_conversion
   **Directions:**
-    - (None)
+    - row
+    - column
   **Require Sandwich:** False
   **Chain Capture:** False
-  **Min Chain Length:** 0
-  **Result:** No capture events; progress driven by pattern completion and pest placement
+  **Min Chain Length:** 1
+  **Result:** AI spill events or re-sorting adjustments cause affected coins to re-align into their designated stacks
   **Capture Algorithm:**
-    **Name:** none
+    **Name:** apply_spill_and_rebalance
     **Inputs:**
-      - (None)
+      - row
+      - col
+      - current_player
+      - board
+      - parameters
     **Outputs:**
-
+      **Affected Count:** int
     **Parameters:**
-
+      **Directions:**
+        - row
+        - column
+      **Min Chain Length:** 1
+      **Require Bounded:** False
     **Steps:**
-      - (None)
+      - Detect spill trigger from AI action or valid move
+      - Distribute spilled coins into available adjacent spots
+      - Rebalance stacks to reflect new layout
 **Turn Flow:**
   **Switch After Move:** True
   **Pass If No Valid Move:** True
   **Extra Turn Conditions:** end game after two consecutive passes
 **Scoring:**
-  **Method:** pattern_completion
-  **Winner Determination:** Human wins if any row (6 cells) contains identical crop tokens with no pests in that row; AI wins if a full row of Pest obstacles appears or if draw conditions occur without human victory
+  **Method:** count_pieces
+  **Winner Determination:** Highest total of correctly stacked coins at end of game wins; in case of tie, draw
 
 ## Turns
 
@@ -145,9 +155,10 @@
   **Parameters:**
     - row
     - col
-    - actionType (slide|flip)
-    - targetRow|targetCol (for slide)
-  **Condition:** current_player == 1 AND game.status == playing AND a legal move exists
+    - move_type
+    - target_row
+    - target_col
+  **Condition:** current_player == 1 AND game.status == playing AND [move validity conditions]
   **Result:** Apply mechanics.move_validation and mechanics.capture; update state; switch to AI; check end conditions
   **Name:** ai_move
   **Parameters:**
@@ -165,7 +176,7 @@
 
 **Id:** R1
 **Text:** Clear, testable rule with input/output (MUST / SHOULD / MAY).
-**Type:** core|validation|optional
+**Type:** core
 
 
 **Id:** R_AI_1
@@ -174,39 +185,33 @@
 
 
 **Id:** R_AI_2
-**Text:** AI with difficulty 'easy' MUST use a simple deterministic pest-placement heuristic.
+**Text:** AI with difficulty 'easy' MUST use a simple heuristic: pick the first valid immediate improvement.
 **Type:** core
 
 
 **Id:** R_AI_3
-**Text:** AI with difficulty 'medium' MUST use a moderate heuristic balancing pest placement and block strategies.
+**Text:** AI with difficulty 'medium' MUST use a moderate minimax with depth 4 search.
 **Type:** core
 
 
 **Id:** R_AI_4
-**Text:** AI with difficulty 'hard' MUST use an advanced planning algorithm with lookahead.
+**Text:** AI with difficulty 'hard' MUST use an advanced search with pruning and lookahead and seedable randomness for replay.
 **Type:** core
 
 
 ## End Conditions
 
 **Win:**
-  **Condition:** Human completes a full row of identical vegetables with no pests in that row
-  **Check Logic:** At end of a turn, scan all 6 rows; if any row contains six tokens of the same vegetable type and zero Pest tokens, human_wins
+  **Condition:** human_objectives_completed
+  **Check Logic:** All coins are in their designated correct stacks; human has achieved the objective before AI
   **Priority:** immediate
 **Lose:**
-  **Condition:** AI forms a full Pest row (one entire row occupied by Pest tokens)
-  **Check Logic:** Scan all rows; if any row consists entirely of Pest tokens, ai_wins
+  **Condition:** ai_objectives_completed
+  **Check Logic:** All coins are in their designated correct stacks; AI has achieved the objective before human
   **Priority:** immediate
-  **Condition:** Time or no legal moves lead to end
-  **Check Logic:** If both players have no legal moves for a full round, declare draw unless a win condition is met
-  **Priority:** end_turn
 **Draw:**
-  **Condition:** No legal moves exist for both players for an entire round
-  **Check Logic:** After a full pass cycle with no changes, trigger draw
-  **Priority:** end_turn
-  **Condition:** Move limit reached without a winner
-  **Check Logic:** If move_count >= 200, declare draw
+  **Condition:** no_legal_moves_for_both_players
+  **Check Logic:** During a full rotation, neither player has a legal move
   **Priority:** end_turn
 
 ## Ui
@@ -218,24 +223,21 @@
   - Game status message
   - Restart button
 **Interactions:**
-  - Click/tap to perform a move
-  - Drag to slide, tap to flip, hover for previews
-  - Keyboard navigation with ARIA focus
+  - Click/tap to make move
+  - Hover for preview/hints
+  - Click restart button
 **Feedback:**
   - Highlight valid moves
   - Animate AI move
   - Show AI thinking state
-  - Display winner/loser message
+  - Display winner message
 **Board Style:**
   **Cell Size:** 48
   **Grid Line Color:** #333333
   **Disc Colors:**
-    **Crop Type 1:** #4CAF50
-    **Crop Type 2:** #8BC34A
-    **Crop Type 3:** #FFC107
-    **Crop Type 4:** #9C27B0
-    **Pest:** #555555
-    **Outline:** #aaaaaa
+    **Player 1:** #ffd700
+    **Player 2:** #c0c0c0
+    **Outline:** #888888
   **Valid Move Highlight:**
     **Enabled:** True
     **Color:** #66ccff
@@ -253,11 +255,6 @@
   **Target Fps:** 30
   **Max Load Time Ms:** 1000
   **Max Ai Think Time Ms:** 2000
-**Accessibility:**
-  **Aria Labels:** True
-  **Aria Live:** True
-**Modularity:**
-  **Ui Split:** True
 
 ## Acceptance
 
@@ -269,22 +266,22 @@
 
 **Given:** A valid move exists per game rules
 **When:** Player performs a valid move
-**Then:** State updates deterministically; last_move recorded; AI turn begins
+**Then:** State updates deterministically and UI reflects new board
 
 
 **Given:** AI's turn, difficulty='easy'
 **When:** AI calculates move
-**Then:** AI uses simple deterministic pest-placement within 2 seconds
+**Then:** AI uses simple algorithm, makes valid move within 2s
 
 
-**Given:** Human can win by row completion
-**When:** Human achieves a full matching row
-**Then:** Human wins and modal displays
+**Given:** AI can win in 1 move
+**When:** AI's turn, difficulty='medium' or 'hard'
+**Then:** AI MUST execute winning move if available
 
 
-**Given:** AI blocks all winning paths
-**When:** AI forms a full Pest row
-**Then:** AI wins and modal displays
+**Given:** Human can win next turn
+**When:** AI's turn, difficulty='medium' or 'hard'
+**Then:** AI MUST attempt to block human's winning path
 
 
 ## Config
