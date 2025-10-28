@@ -1,0 +1,1 @@
+SafeSweep is a solo puzzle inspired by classic Minesweeper played on a small grid. The board hides a handful of bombs randomly; click a cell to reveal it. If a bomb is revealed, the round ends in a loss. Numbers show how many bombs touch that cell; revealing all non-bomb cells clears the level. Use left-click to reveal and a UI hint to restart. No keyboard needed.
