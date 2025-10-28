@@ -1,0 +1,1 @@
+A 9x9 grid with mirrored tokens. Tap a token to move into an adjacent empty cell or drag to shift a line. Clear mirrored pairs to score; the AI adds mirrored blockers for challenge.
