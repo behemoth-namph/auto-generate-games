@@ -1,14 +1,14 @@
-# Tile Readout
+# King’s Courier
 
 ## Meta
 
-**Game Name:** Tile Readout
+**Game Name:** King’s Courier
 **Game Type:** board
 **Player Mode:** player_vs_ai
 **Players:**
   **Human:** 1
   **Ai:** 1
-**Core Mechanic:** A 5x5 sliding-digit puzzle where the human picks a digit tile and slides it into an adjacent empty space; the AI may insert a neutral obstacle tile to block a spot on its turns. Deterministic, replayable gameplay with a decoupled UI.
+**Core Mechanic:** On a 7x7 board, deliver courier tokens from start to throne by sliding or tapping to adjacent empties. The AI occasionally sends a rival guard to chase and block the most promising route.
 **Session Minutes:**
   - 5
   - 15
@@ -19,8 +19,8 @@
   **Type:** grid
   **Topology:** square
   **Dimensions:**
-    - 5
-    - 5
+    - 7
+    - 7
   **Neighbors:**
     - up
     - down
@@ -31,8 +31,8 @@
   **Properties:**
     **Id:** 1
     **Type:** human
-    **Color:** #1e90ff
-    **Pieces Played:** int
+    **Color:** #000000
+    **Pieces Played:** 0
   **Initial State:**
     **Pieces Played:** 0
   **Name:** AI
@@ -50,17 +50,18 @@
     **Is Thinking:** False
   **Name:** Board
   **Properties:**
-    **Grid:** 2D array of cells with fields: occupantId|null, value (digit or null), type
-    **Rows:** 5
-    **Cols:** 5
+    **Grid:** 2D array of 7x7 cells; each cell may hold a piece id or null
+    **Rows:** 7
+    **Cols:** 7
   **Initial State:**
 
   **Name:** Game
   **Properties:**
-    **Current Player:** int (1 or 2)
-    **Status:** string (playing|human_wins|ai_wins|draw)
-    **Move Count:** int
-    **Last Move:** object
+    **Current Player:** 1
+    **Status:** playing
+    **Move Count:** 0
+    **Last Move:**
+
   **Initial State:**
     **Current Player:** 1
     **Status:** playing
@@ -69,24 +70,24 @@
 ## Mechanics
 
 **Setup:**
-  **Initial Placement:** Digits 1-24 placed in row-major order with the bottom-right cell empty. The starting layout is fixed for determinism (see Row-major target).
+  **Initial Placement:** Courier tokens placed at the human start area; throne located at the far end; AI rival guard starts near the AI side; all other squares empty.
   **Starting Player Rule:** human
 **Move Validation:**
   **Must Place On Empty:** True
   **Validity Checks:**
-    - target cell must be the currently empty cell
-    - selected tile must be a movable digit tile (not a neutral obstacle)
-    - target must be adjacent to the selected tile
+    - destination square must be empty
+    - destination must be exactly one step away in one of the four cardinal directions
   **Validation Algorithm:**
-    **Name:** grid_slide_validation
+    **Name:** grid_scan
     **Inputs:**
       - row
       - col
       - current_player
       - board
     **Outputs:**
-      **Is Valid:** boolean
-      **Preview:** object
+      **Is Valid:** True
+      **Preview:**
+
     **Parameters:**
       **Directions:**
         - up
@@ -94,15 +95,15 @@
         - left
         - right
       **Min Chain Length:** 1
-      **Require Bounded:** False
+      **Require Bounded:** True
       **Gravity:** False
     **Steps:**
-      - Locate selected tile position
-      - Identify adjacent empty cell(s)
-      - Verify target adjacency and emptiness
-      - Return validity and a preview of resulting board state if valid
+      - Confirm destination is within one-step move from a movable piece
+      - Confirm destination cell is empty
+      - Validate move against game rules and current state
+      - Return is_valid and optional move preview
 **Movement:**
-  **Allowed:** slide
+  **Allowed:** step|slide
   **Directions:**
     - up
     - down
@@ -116,7 +117,7 @@
   **Require Sandwich:** False
   **Chain Capture:** False
   **Min Chain Length:** 0
-  **Result:** No capture occurs; tiles slide into the empty space only.
+  **Result:** No captures occur in this game; guards block routes instead of capturing
   **Capture Algorithm:**
     **Name:** none
     **Inputs:**
@@ -126,7 +127,7 @@
       - board
       - parameters
     **Outputs:**
-      **Affected Count:** int
+      **Affected Count:** 0
     **Parameters:**
       **Directions:**
         - (None)
@@ -140,7 +141,7 @@
   **Extra Turn Conditions:** end game after two consecutive passes
 **Scoring:**
   **Method:** points
-  **Winner Determination:** The human wins when the target row-major arrangement with an empty cell at bottom-right is achieved; otherwise, play continues. Tie-breaks follow move_count comparison.
+  **Winner Determination:** Human wins if courier reaches the throne; otherwise, determine winner by objective progress or declare draw if stalemate persists
 
 ## Turns
 
@@ -149,11 +150,9 @@
 **Actions:**
   **Name:** player_move
   **Parameters:**
-    - fromRow
-    - fromCol
-    - toRow
-    - toCol
-  **Condition:** current_player == 1 AND game.status == playing
+    - from
+    - to
+  **Condition:** current_player == 1 AND game.status == playing AND move is valid per mechanics.move_validation
   **Result:** Apply mechanics.move_validation and mechanics.capture; update state; switch to AI; check end conditions
   **Name:** ai_move
   **Parameters:**
@@ -170,8 +169,8 @@
 
 
 **Id:** R1
-**Text:** Clear, testable rule with input/output MUST be defined for each action.
-**Type:** core|validation|optional
+**Text:** All game actions MUST be deterministic given the seed and event log; invalid actions MUST return a clear error with code and message.
+**Type:** core
 
 
 **Id:** R_AI_1
@@ -180,33 +179,33 @@
 
 
 **Id:** R_AI_2
-**Text:** AI with difficulty 'easy' MUST use a simple rule-based heuristic for valid moves.
+**Text:** AI with difficulty 'easy' MUST use a simple heuristic-based move selection.
 **Type:** core
 
 
 **Id:** R_AI_3
-**Text:** AI with difficulty 'medium' MUST use a moderate-depth search with deterministic evaluation.
+**Text:** AI with difficulty 'medium' MUST use a constrained search (minimax with pruning) to depth 4.
 **Type:** core
 
 
 **Id:** R_AI_4
-**Text:** AI with difficulty 'hard' MUST use an advanced algorithm with pruning and deterministic evaluation.
+**Text:** AI with difficulty 'hard' MUST use an advanced search (minimax with iterative deepening or MCTS) with seedable randomness for reproducibility.
 **Type:** core
 
 
 ## End Conditions
 
 **Win:**
-  **Condition:** human_win
-  **Check Logic:** Board is in target row-major order with digits 1-24 placed left-to-right, top-to-bottom and the bottom-right cell empty.
+  **Condition:** human_courier_reaches_throne
+  **Check Logic:** Courier token on throne tile after human move
   **Priority:** immediate
 **Lose:**
-  **Condition:** ai_timeout_or_blocked_loss
-  **Check Logic:** If move_count exceeds a fixed threshold (e.g., 60 moves) and human win condition not yet achieved, AI is declared winner.
-  **Priority:** end_turn
+  **Condition:** ai_rival_guard_catches_courier or human_no_moves
+  **Check Logic:** Guard occupies courier tile or no legal human moves
+  **Priority:** immediate
 **Draw:**
-  **Condition:** stalemate_or_two_consecutive_passes
-  **Check Logic:** If current player has no legal moves and both players pass consecutively, declare a draw.
+  **Condition:** no_legal_moves_for_both_or stalemate after a full round
+  **Check Logic:** No moves available for both sides
   **Priority:** end_turn
 
 ## Ui
@@ -218,22 +217,20 @@
   - Game status message
   - Restart button
 **Interactions:**
-  - Click/tap to select a digit tile
-  - Tap adjacent empty to slide
-  - Drag across a row to shift (drag to edge to slide multiple tiles if supported)
+  - Click/tap to make move
   - Hover for preview/hints
   - Click restart button
 **Feedback:**
   - Highlight valid moves
   - Animate AI move
   - Show AI thinking state
-  - Display winner/loser/draw message
+  - Display winner message
 **Board Style:**
   **Cell Size:** 48
   **Grid Line Color:** #333333
   **Disc Colors:**
-    **Player 1:** #1e90ff
-    **Player 2:** #ffd700
+    **Player 1:** #000000
+    **Player 2:** #ffffff
     **Outline:** #aaaaaa
   **Valid Move Highlight:**
     **Enabled:** True
@@ -261,24 +258,24 @@
 **Then:** Expected result with specific values
 
 
-**Given:** A valid placement/move exists per game rules
-**When:** Player performs a valid move
-**Then:** Mechanics.validate and capture apply; state updates deterministically
+**Given:** A valid capture exists per game rules
+**When:** Player performs a capturing move
+**Then:** Captured pieces/territory updated exactly as defined
 
 
 **Given:** AI's turn, difficulty='easy'
 **When:** AI calculates move
-**Then:** AI uses simple algorithm and moves within 2 seconds
+**Then:** AI uses simple algorithm, makes valid move within 2s
 
 
 **Given:** AI can win in 1 move
 **When:** AI's turn, difficulty='medium' or 'hard'
-**Then:** AI MUST execute a winning move if available
+**Then:** AI MUST execute winning move
 
 
 **Given:** Human can win next turn
 **When:** AI's turn, difficulty='medium' or 'hard'
-**Then:** AI MUST block human's winning move if possible
+**Then:** AI MUST block human's winning move
 
 
 ## Config
