@@ -1,17 +1,17 @@
-# Coin Stack Circuit
+# Maze Runner Grid
 
 ## Meta
 
-**Game Name:** Coin Stack Circuit
+**Game Name:** Maze Runner Grid
 **Game Type:** board
 **Player Mode:** player_vs_ai
 **Players:**
   **Human:** 1
   **Ai:** 1
-**Core Mechanic:** A 6x6 grid where you sort coins into correct stacks by moving coins to adjacent empty cells or sliding within a row to form complete stacks. The AI occasionally spills extra coins that must be re-sorted.
+**Core Mechanic:** A deterministic turn-based maze puzzle on a 9x9 grid where the human runner seeks a path to the exit by rotating and placing path tiles. The AI intermittently adds wandering walls to complicate connectivity, requiring the human to adapt the route in real-time.
 **Session Minutes:**
   - 5
-  - 60
+  - 15
 
 ## State
 
@@ -19,16 +19,16 @@
   **Type:** grid
   **Topology:** square
   **Dimensions:**
-    - 6
-    - 6
-  **Neighbors:** directions: [up, down, left, right]
+    - 9
+    - 9
+  **Neighbors:** for grid: ['up','down','left','right']
 **Entities:**
   **Name:** Player
   **Properties:**
     **Id:** 1
     **Type:** human
-    **Color:** #1e90ff
-    **Pieces Played:** int
+    **Color:** #000000
+    **Pieces Played:** 0
   **Initial State:**
     **Pieces Played:** 0
   **Name:** AI
@@ -38,8 +38,6 @@
     **Depth:** 4
     **Response Delay Ms:** 500
     **Is Thinking:** False
-    **Color:** #ff4500
-    **Pieces Played:** int
   **Initial State:**
     **Algorithm:** minimax
     **Difficulty:** medium
@@ -48,36 +46,35 @@
     **Is Thinking:** False
   **Name:** Board
   **Properties:**
-    **Grid:** 2D array of cells; each cell stores occupantId|null and stack information
-    **Rows:** int
-    **Cols:** int
+    **Grid:** 9x9 array of path/wall tiles; each cell stores tile type, rotation, and occupancy
+    **Rows:** 9
+    **Cols:** 9
   **Initial State:**
 
   **Name:** Game
   **Properties:**
-    **Current Player:** int (1 or 2)
-    **Status:** string (playing|human_wins|ai_wins|draw)
-    **Move Count:** int
-    **Last Move:** object
-  **Initial State:**
     **Current Player:** 1
     **Status:** playing
     **Move Count:** 0
     **Last Move:** None
+  **Initial State:**
+    **Current Player:** 1
+    **Status:** playing
+    **Move Count:** 0
 
 ## Mechanics
 
 **Setup:**
-  **Initial Placement:** Coins distributed across the 6x6 grid into color-coded stacks; stacks expect specific colors. AI may spill extra coins on its turns.
+  **Initial Placement:** Runner token placed at (0,0); exit at (8,8); initial path tiles arranged to form at least one valid route; AI wandering walls inactive until after the first few human moves
   **Starting Player Rule:** human
 **Move Validation:**
   **Must Place On Empty:** True
   **Validity Checks:**
-    - target cell must be empty
-    - move must be to an adjacent cell or a legal row slide
-    - move must not violate stack capacity or color constraints
+    - placement maintains at least one valid path from runner to exit after the move
+    - tile rotation is within allowed states
+    - no overlapping tiles or tiles placed outside the 9x9 grid
   **Validation Algorithm:**
-    **Name:** grid_scan
+    **Name:** path_check
     **Inputs:**
       - row
       - col
@@ -96,30 +93,29 @@
       **Require Bounded:** True
       **Gravity:** False
     **Steps:**
-      - Identify target coordinates
-      - Verify occupancy is empty
-      - Check adjacency or row-slide legality
-      - Check color/stack compatibility
-      - Return validity and preview of resulting state
+      - Identify target cell; ensure empty slot
+      - Simulate tile placement/rotation
+      - Compute connectivity from runner to exit
+      - If connected, return is_valid = true with a preview of resulting path
 **Movement:**
-  **Allowed:** slide|move
+  **Allowed:** placement|rotate
+  **Directions:**
+    - rotate_tile
+    - drag_to_place
+  **Range:** 1
+**Capture:**
+  **Type:** area_conversion
   **Directions:**
     - up
     - down
     - left
     - right
-  **Range:** 1 (step) for individual moves; slides may traverse multiple cells within a row under rule checks
-**Capture:**
-  **Type:** area_conversion
-  **Directions:**
-    - row
-    - column
   **Require Sandwich:** False
   **Chain Capture:** False
-  **Min Chain Length:** 1
-  **Result:** AI spill events or re-sorting adjustments cause affected coins to re-align into their designated stacks
+  **Min Chain Length:** 2
+  **Result:** AI wandering walls are added to random empty tiles; paths may be closed or opened
   **Capture Algorithm:**
-    **Name:** apply_spill_and_rebalance
+    **Name:** apply_wandering_walls
     **Inputs:**
       - row
       - col
@@ -130,21 +126,24 @@
       **Affected Count:** int
     **Parameters:**
       **Directions:**
-        - row
-        - column
-      **Min Chain Length:** 1
+        - up
+        - down
+        - left
+        - right
+      **Min Chain Length:** 2
       **Require Bounded:** False
     **Steps:**
-      - Detect spill trigger from AI action or valid move
-      - Distribute spilled coins into available adjacent spots
-      - Rebalance stacks to reflect new layout
+      - Increment move counter to determine wandering interval
+      - Choose candidate empty cells based on a simple heuristic
+      - Place wall tiles in chosen cells
+      - Update board state and recalculate connectivity where needed
 **Turn Flow:**
   **Switch After Move:** True
   **Pass If No Valid Move:** True
   **Extra Turn Conditions:** end game after two consecutive passes
 **Scoring:**
-  **Method:** count_pieces
-  **Winner Determination:** Highest total of correctly stacked coins at end of game wins; in case of tie, draw
+  **Method:** path_connectivity
+  **Winner Determination:** If human runner reaches exit, human wins; if exit becomes permanently unreachable due to walls and AI cannot create a new valid path, AI wins; draw if no legal moves exist for both players during a full round
 
 ## Turns
 
@@ -153,9 +152,8 @@
 **Actions:**
   **Name:** player_move
   **Parameters:**
-    - row
-    - col
-    - move_type
+    - tile_id
+    - rotation
     - target_row
     - target_col
   **Condition:** current_player == 1 AND game.status == playing AND [move validity conditions]
@@ -175,8 +173,8 @@
 
 
 **Id:** R1
-**Text:** Clear, testable rule with input/output (MUST / SHOULD / MAY).
-**Type:** core
+**Text:** Clear, testable rule with input/output MUST.
+**Type:** core|validation|optional
 
 
 **Id:** R_AI_1
@@ -185,33 +183,33 @@
 
 
 **Id:** R_AI_2
-**Text:** AI with difficulty 'easy' MUST use a simple heuristic: pick the first valid immediate improvement.
+**Text:** AI with difficulty 'easy' MUST use a simple heuristic without deep search.
 **Type:** core
 
 
 **Id:** R_AI_3
-**Text:** AI with difficulty 'medium' MUST use a moderate minimax with depth 4 search.
+**Text:** AI with difficulty 'medium' MUST use a moderate-depth search strategy.
 **Type:** core
 
 
 **Id:** R_AI_4
-**Text:** AI with difficulty 'hard' MUST use an advanced search with pruning and lookahead and seedable randomness for replay.
+**Text:** AI with difficulty 'hard' MUST use an advanced search with pruning and lookahead.
 **Type:** core
 
 
 ## End Conditions
 
 **Win:**
-  **Condition:** human_objectives_completed
-  **Check Logic:** All coins are in their designated correct stacks; human has achieved the objective before AI
+  **Condition:** human_reaches_exit
+  **Check Logic:** If the runner token occupies the exit cell (8,8) on human turn or after a valid move
   **Priority:** immediate
 **Lose:**
-  **Condition:** ai_objectives_completed
-  **Check Logic:** All coins are in their designated correct stacks; AI has achieved the objective before human
+  **Condition:** ai_blocks_all_paths
+  **Check Logic:** If there exists no valid path from runner to exit and human has exhausted legal moves
   **Priority:** immediate
 **Draw:**
-  **Condition:** no_legal_moves_for_both_players
-  **Check Logic:** During a full rotation, neither player has a legal move
+  **Condition:** no_legal_moves_after_round
+  **Check Logic:** If after a full cycle both players have no legal moves
   **Priority:** end_turn
 
 ## Ui
@@ -223,21 +221,21 @@
   - Game status message
   - Restart button
 **Interactions:**
-  - Click/tap to make move
+  - Click/tap to place or rotate a tile
   - Hover for preview/hints
   - Click restart button
 **Feedback:**
   - Highlight valid moves
   - Animate AI move
   - Show AI thinking state
-  - Display winner message
+  - Display winner/loser/draw message
 **Board Style:**
   **Cell Size:** 48
   **Grid Line Color:** #333333
   **Disc Colors:**
-    **Player 1:** #ffd700
-    **Player 2:** #c0c0c0
-    **Outline:** #888888
+    **Player 1:** #000000
+    **Player 2:** #ffffff
+    **Outline:** #aaaaaa
   **Valid Move Highlight:**
     **Enabled:** True
     **Color:** #66ccff
@@ -264,19 +262,19 @@
 **Then:** Expected result with specific values
 
 
-**Given:** A valid move exists per game rules
-**When:** Player performs a valid move
-**Then:** State updates deterministically and UI reflects new board
+**Given:** A valid placement exists per game rules
+**When:** Player places or rotates a tile
+**Then:** Board updates accordingly and path validity is re-evaluated
 
 
 **Given:** AI's turn, difficulty='easy'
 **When:** AI calculates move
-**Then:** AI uses simple algorithm, makes valid move within 2s
+**Then:** AI uses simple heuristic and returns a valid move within 2s
 
 
 **Given:** AI can win in 1 move
 **When:** AI's turn, difficulty='medium' or 'hard'
-**Then:** AI MUST execute winning move if available
+**Then:** AI MUST execute a winning or blocking move if available
 
 
 **Given:** Human can win next turn
