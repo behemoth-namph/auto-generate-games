@@ -1,0 +1,1 @@
+Classic Lights Out style puzzle on a 5x5 grid. The board starts with a random pattern of lit lights. Click any cell to toggle that cell and its four orthogonal neighbors. The goal is to turn all lights off. The puzzle can be reset into a new random configuration with a single click of the New Puzzle action, keeping input simple to mouse clicks.
