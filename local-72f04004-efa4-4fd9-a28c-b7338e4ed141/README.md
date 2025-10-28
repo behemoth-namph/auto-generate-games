@@ -1,0 +1,1 @@
+Sokoban Lite places you in a tiny warehouse grid where you push crates to storage spots. You control your worker by clicking an adjacent square to move or by dragging in a direction. You can push a single crate if the square beyond is empty; walls block movement. Solve all levels by placing every crate onto a target cell. No timers, simple AI-free puzzle.
