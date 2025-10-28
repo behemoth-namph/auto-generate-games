@@ -1,0 +1,1 @@
+A peaceful 7x7 garden with flower tokens. Group and clear connected same-color flowers by tapping a token and moving it to a matching neighbor. AI occasionally sprouts weed tokens that must be avoided.
