@@ -1,17 +1,17 @@
-# Lantern Link
+# Maze Runner Grid
 
 ## Meta
 
-**Game Name:** Lantern Link
+**Game Name:** Maze Runner Grid
 **Game Type:** board
 **Player Mode:** player_vs_ai
 **Players:**
   **Human:** 1
   **Ai:** 1
-**Core Mechanic:** On an 8x8 grid, players slide lantern tokens along rows or columns to connect them; click to pick a lantern, then click an unobstructed line to move it tile-by-tile, or drag along a straight path. An AI introduces light-blockers to complicate routes. The game is deterministic, replayable, and UI-decoupled.
+**Core Mechanic:** A deterministic turn-based maze puzzle on a 9x9 grid where the human runner seeks a path to the exit by rotating and placing path tiles. The AI intermittently adds wandering walls to complicate connectivity, requiring the human to adapt the route in real-time.
 **Session Minutes:**
   - 5
-  - 60
+  - 15
 
 ## State
 
@@ -19,58 +19,36 @@
   **Type:** grid
   **Topology:** square
   **Dimensions:**
-    - 8
-    - 8
-  **Neighbors:**
-    - N
-    - S
-    - E
-    - W
-  **Cell Schema:**
-    **Id:** string
-    **Coord:**
-      - 0
-      - 0
-    **Tags:**
-      - (None)
-    **Occupantid:** None
-    **Visibility:** public
-  **Cells Metadata:**
-    **Coord:**
-      - 0
-      - 0
-    **Id:** cell_0_0
-    **Tags:**
-      - start
-    **Occupantid:** None
-    **Visibility:** public
+    - 9
+    - 9
+  **Neighbors:** for grid: ['up','down','left','right']
 **Entities:**
   **Name:** Player
   **Properties:**
     **Id:** 1
     **Type:** human
-    **Color:** #1f7a1f
+    **Color:** #000000
     **Pieces Played:** 0
   **Initial State:**
     **Pieces Played:** 0
   **Name:** AI
   **Properties:**
     **Algorithm:** minimax
-    **Difficulty:** hard
+    **Difficulty:** medium
     **Depth:** 4
     **Response Delay Ms:** 500
     **Is Thinking:** False
   **Initial State:**
     **Algorithm:** minimax
-    **Difficulty:** hard
+    **Difficulty:** medium
     **Depth:** 4
     **Response Delay Ms:** 500
     **Is Thinking:** False
   **Name:** Board
   **Properties:**
-    **Grid:** 8x8 lattice of cells with occupancy states
-    **Rows:** 8
-    **Cols:** 8
+    **Grid:** 9x9 array of path/wall tiles; each cell stores tile type, rotation, and occupancy
+    **Rows:** 9
+    **Cols:** 9
   **Initial State:**
 
   **Name:** Game
@@ -78,8 +56,7 @@
     **Current Player:** 1
     **Status:** playing
     **Move Count:** 0
-    **Last Move:**
-
+    **Last Move:** None
   **Initial State:**
     **Current Player:** 1
     **Status:** playing
@@ -88,15 +65,14 @@
 ## Mechanics
 
 **Setup:**
-  **Initial Placement:** A symmetric starter layout places a subset of lantern tokens for the human player on accessible cells along the front rows, with empty spaces enabling initial slides. AI lights are not blocking at setup but will be introduced progressively by the AI on its turns.
+  **Initial Placement:** Runner token placed at (0,0); exit at (8,8); initial path tiles arranged to form at least one valid route; AI wandering walls inactive until after the first few human moves
   **Starting Player Rule:** human
 **Move Validation:**
   **Must Place On Empty:** True
   **Validity Checks:**
-    - move originates from a lantern owned by the current player
-    - destination is empty
-    - movement is along a single row or a single column
-    - path between origin and destination is clear of blockers and other lanterns
+    - placement maintains at least one valid path from runner to exit after the move
+    - tile rotation is within allowed states
+    - no overlapping tiles or tiles placed outside the 9x9 grid
   **Validation Algorithm:**
     **Name:** path_check
     **Inputs:**
@@ -109,37 +85,37 @@
       **Preview:** object
     **Parameters:**
       **Directions:**
-        - north
-        - south
-        - east
-        - west
+        - up
+        - down
+        - left
+        - right
       **Min Chain Length:** 1
       **Require Bounded:** True
       **Gravity:** False
     **Steps:**
-      - Verify a lantern belonging to current_player exists at (row, col).
-      - Determine direction and trace a straight line to the target cell.
-      - Ensure all intermediate cells are empty and within board bounds.
-      - Destination must be empty; if valid, return new coordinates as preview.
-      - Return is_valid = true with preview of resulting board state.
+      - Identify target cell; ensure empty slot
+      - Simulate tile placement/rotation
+      - Compute connectivity from runner to exit
+      - If connected, return is_valid = true with a preview of resulting path
 **Movement:**
-  **Allowed:** slide
+  **Allowed:** placement|rotate
   **Directions:**
-    - north
-    - south
-    - east
-    - west
-  **Range:** unbounded
+    - rotate_tile
+    - drag_to_place
+  **Range:** 1
 **Capture:**
-  **Type:** none
+  **Type:** area_conversion
   **Directions:**
-    - (None)
+    - up
+    - down
+    - left
+    - right
   **Require Sandwich:** False
   **Chain Capture:** False
-  **Min Chain Length:** 0
-  **Result:** No captures occur in Lantern Link; goal is connectivity of lanterns via valid slides
+  **Min Chain Length:** 2
+  **Result:** AI wandering walls are added to random empty tiles; paths may be closed or opened
   **Capture Algorithm:**
-    **Name:** none
+    **Name:** apply_wandering_walls
     **Inputs:**
       - row
       - col
@@ -150,18 +126,24 @@
       **Affected Count:** int
     **Parameters:**
       **Directions:**
-        - (None)
-      **Min Chain Length:** 0
+        - up
+        - down
+        - left
+        - right
+      **Min Chain Length:** 2
       **Require Bounded:** False
     **Steps:**
-      - (None)
+      - Increment move counter to determine wandering interval
+      - Choose candidate empty cells based on a simple heuristic
+      - Place wall tiles in chosen cells
+      - Update board state and recalculate connectivity where needed
 **Turn Flow:**
   **Switch After Move:** True
   **Pass If No Valid Move:** True
   **Extra Turn Conditions:** end game after two consecutive passes
 **Scoring:**
-  **Method:** points
-  **Winner Determination:** At end, the player with more connected lanterns (via valid slides) wins; equal counts result in a draw.
+  **Method:** path_connectivity
+  **Winner Determination:** If human runner reaches exit, human wins; if exit becomes permanently unreachable due to walls and AI cannot create a new valid path, AI wins; draw if no legal moves exist for both players during a full round
 
 ## Turns
 
@@ -170,11 +152,11 @@
 **Actions:**
   **Name:** player_move
   **Parameters:**
-    - row
-    - col
-    - direction
-    - destination
-  **Condition:** current_player == 1 AND game.status == playing AND move is valid per mechanics.move_validation
+    - tile_id
+    - rotation
+    - target_row
+    - target_col
+  **Condition:** current_player == 1 AND game.status == playing AND [move validity conditions]
   **Result:** Apply mechanics.move_validation and mechanics.capture; update state; switch to AI; check end conditions
   **Name:** ai_move
   **Parameters:**
@@ -191,7 +173,7 @@
 
 
 **Id:** R1
-**Text:** All gameplay must be deterministic and replayable given the same seed and inputs. This game does not use nondeterministic randomness in core logic.
+**Text:** Clear, testable rule with input/output MUST.
 **Type:** core|validation|optional
 
 
@@ -201,33 +183,33 @@
 
 
 **Id:** R_AI_2
-**Text:** AI with difficulty 'easy' MUST use a simple heuristic-based slide generation.
+**Text:** AI with difficulty 'easy' MUST use a simple heuristic without deep search.
 **Type:** core
 
 
 **Id:** R_AI_3
-**Text:** AI with difficulty 'medium' MUST use a moderate-depth search suitable for turn-based pathfinding.
+**Text:** AI with difficulty 'medium' MUST use a moderate-depth search strategy.
 **Type:** core
 
 
 **Id:** R_AI_4
-**Text:** AI with difficulty 'hard' MUST use an advanced search with pruning and deterministic evaluation.
+**Text:** AI with difficulty 'hard' MUST use an advanced search with pruning and lookahead.
 **Type:** core
 
 
 ## End Conditions
 
 **Win:**
-  **Condition:** Human lanterns connected
-  **Check Logic:** All human lanterns are connected through a chain of valid slides with no blockers interrupting the chain
+  **Condition:** human_reaches_exit
+  **Check Logic:** If the runner token occupies the exit cell (8,8) on human turn or after a valid move
   **Priority:** immediate
 **Lose:**
-  **Condition:** AI blocks all human moves
-  **Check Logic:** On human turn, there are zero legal moves available for the human player
-  **Priority:** end_turn
+  **Condition:** ai_blocks_all_paths
+  **Check Logic:** If there exists no valid path from runner to exit and human has exhausted legal moves
+  **Priority:** immediate
 **Draw:**
-  **Condition:** No legal moves for either side for a full round
-  **Check Logic:** End of a complete cycle with no legal moves detected for both players
+  **Condition:** no_legal_moves_after_round
+  **Check Logic:** If after a full cycle both players have no legal moves
   **Priority:** end_turn
 
 ## Ui
@@ -239,20 +221,20 @@
   - Game status message
   - Restart button
 **Interactions:**
-  - Click/tap to make move
+  - Click/tap to place or rotate a tile
   - Hover for preview/hints
   - Click restart button
 **Feedback:**
   - Highlight valid moves
   - Animate AI move
   - Show AI thinking state
-  - Display winner message
+  - Display winner/loser/draw message
 **Board Style:**
   **Cell Size:** 48
   **Grid Line Color:** #333333
   **Disc Colors:**
-    **Player 1:** #1f7a1f
-    **Player 2:** #1b4d90
+    **Player 1:** #000000
+    **Player 2:** #ffffff
     **Outline:** #aaaaaa
   **Valid Move Highlight:**
     **Enabled:** True
@@ -280,24 +262,24 @@
 **Then:** Expected result with specific values
 
 
-**Given:** A valid move exists per game rules
-**When:** Player performs a valid sliding move
-**Then:** State updates reflect the slide, and last_move is recorded
+**Given:** A valid placement exists per game rules
+**When:** Player places or rotates a tile
+**Then:** Board updates accordingly and path validity is re-evaluated
 
 
 **Given:** AI's turn, difficulty='easy'
 **When:** AI calculates move
-**Then:** AI uses simple heuristic, makes a valid move within 2s
+**Then:** AI uses simple heuristic and returns a valid move within 2s
 
 
 **Given:** AI can win in 1 move
 **When:** AI's turn, difficulty='medium' or 'hard'
-**Then:** AI MUST execute a winning move if available
+**Then:** AI MUST execute a winning or blocking move if available
 
 
 **Given:** Human can win next turn
 **When:** AI's turn, difficulty='medium' or 'hard'
-**Then:** AI MUST attempt to block human's potential winning move
+**Then:** AI MUST attempt to block human's winning path
 
 
 ## Config
