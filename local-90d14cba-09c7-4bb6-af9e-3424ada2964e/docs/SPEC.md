@@ -1,17 +1,17 @@
-# King’s Courier
+# Mine Cart Grid
 
 ## Meta
 
-**Game Name:** King’s Courier
+**Game Name:** Mine Cart Grid
 **Game Type:** board
 **Player Mode:** player_vs_ai
 **Players:**
   **Human:** 1
   **Ai:** 1
-**Core Mechanic:** On a 7x7 board, deliver courier tokens from start to throne by sliding or tapping to adjacent empties. The AI occasionally sends a rival guard to chase and block the most promising route.
+**Core Mechanic:** Navigate mine cart tokens on a 6x6 grid toward exit rails by selecting a cart then moving it to a neighboring empty cell or by dragging along a straight line; AI occasionally shelves a rock blocker to complicate paths.
 **Session Minutes:**
-  - 5
-  - 15
+  - 20
+  - 40
 
 ## State
 
@@ -19,8 +19,8 @@
   **Type:** grid
   **Topology:** square
   **Dimensions:**
-    - 7
-    - 7
+    - 6
+    - 6
   **Neighbors:**
     - up
     - down
@@ -31,7 +31,7 @@
   **Properties:**
     **Id:** 1
     **Type:** human
-    **Color:** #000000
+    **Color:** #1e90ff
     **Pieces Played:** 0
   **Initial State:**
     **Pieces Played:** 0
@@ -50,18 +50,17 @@
     **Is Thinking:** False
   **Name:** Board
   **Properties:**
-    **Grid:** 2D array of 7x7 cells; each cell may hold a piece id or null
-    **Rows:** 7
-    **Cols:** 7
+    **Grid:** 6x6 matrix with cells containing {occupantId|null, blocked|rock} entries; initial layout places a subset of mine carts for Player 1 and AI tokens along starting zones; rocks may appear as blockers
+    **Rows:** 6
+    **Cols:** 6
   **Initial State:**
 
   **Name:** Game
   **Properties:**
-    **Current Player:** 1
-    **Status:** playing
-    **Move Count:** 0
-    **Last Move:**
-
+    **Current Player:** int (1 or 2)
+    **Status:** string (playing|human_wins|ai_wins|draw)
+    **Move Count:** int
+    **Last Move:** object
   **Initial State:**
     **Current Player:** 1
     **Status:** playing
@@ -70,24 +69,25 @@
 ## Mechanics
 
 **Setup:**
-  **Initial Placement:** Courier tokens placed at the human start area; throne located at the far end; AI rival guard starts near the AI side; all other squares empty.
+  **Initial Placement:** Place mine cart tokens on designated starting rows for each player; exit rails are at opposing edges; rocks blocker tokens may be introduced by AI shelves during play. All placements are deterministic and replayable given seed.
   **Starting Player Rule:** human
 **Move Validation:**
   **Must Place On Empty:** True
   **Validity Checks:**
-    - destination square must be empty
-    - destination must be exactly one step away in one of the four cardinal directions
+    - target cell is empty
+    - move conforms to allowed movement: single-step to adjacent cell OR drag along a straight line with a continuous, unblocked path
+    - drag path is straight (no turns) and terminates on an empty cell
+    - cannot move into a blocked cell unless the blocker is removed by game rules
   **Validation Algorithm:**
-    **Name:** grid_scan
+    **Name:** path_check
     **Inputs:**
       - row
       - col
       - current_player
       - board
     **Outputs:**
-      **Is Valid:** True
-      **Preview:**
-
+      **Is Valid:** boolean
+      **Preview:** object
     **Parameters:**
       **Directions:**
         - up
@@ -95,13 +95,13 @@
         - left
         - right
       **Min Chain Length:** 1
-      **Require Bounded:** True
+      **Require Bounded:** False
       **Gravity:** False
     **Steps:**
-      - Confirm destination is within one-step move from a movable piece
-      - Confirm destination cell is empty
-      - Validate move against game rules and current state
-      - Return is_valid and optional move preview
+      - Ensure target is within allowed range (1 step or straight-line drag)
+      - Check path between source and target is clear of blockers
+      - Verify target is empty
+      - Confirm movement respects turn order
 **Movement:**
   **Allowed:** step|slide
   **Directions:**
@@ -109,7 +109,7 @@
     - down
     - left
     - right
-  **Range:** 1
+  **Range:** step:1; slide:any
 **Capture:**
   **Type:** none
   **Directions:**
@@ -117,17 +117,13 @@
   **Require Sandwich:** False
   **Chain Capture:** False
   **Min Chain Length:** 0
-  **Result:** No captures occur in this game; guards block routes instead of capturing
+  **Result:** No capture mechanics in core play; rocks blockers persist until moved or removed by rules
   **Capture Algorithm:**
     **Name:** none
     **Inputs:**
-      - row
-      - col
-      - current_player
-      - board
-      - parameters
+      - (None)
     **Outputs:**
-      **Affected Count:** 0
+
     **Parameters:**
       **Directions:**
         - (None)
@@ -141,17 +137,19 @@
   **Extra Turn Conditions:** end game after two consecutive passes
 **Scoring:**
   **Method:** points
-  **Winner Determination:** Human wins if courier reaches the throne; otherwise, determine winner by objective progress or declare draw if stalemate persists
+  **Winner Determination:** The human player wins if any of their carts reach an designated exit rail; the AI wins if its cart(s) reach an exit rail; if both reach exit rails in the same turn, it's a draw.
 
 ## Turns
 
 **Order:** Human (Player 1) → AI (Player 2) → repeat
-**Max Time Seconds:** 30
+**Max Time Seconds:** 20
 **Actions:**
   **Name:** player_move
   **Parameters:**
-    - from
-    - to
+    - sourceRow
+    - sourceCol
+    - targetRow
+    - targetCol
   **Condition:** current_player == 1 AND game.status == playing AND move is valid per mechanics.move_validation
   **Result:** Apply mechanics.move_validation and mechanics.capture; update state; switch to AI; check end conditions
   **Name:** ai_move
@@ -169,7 +167,7 @@
 
 
 **Id:** R1
-**Text:** All game actions MUST be deterministic given the seed and event log; invalid actions MUST return a clear error with code and message.
+**Text:** Clear, testable rule with input/output (MUST/SHOULD/CAN).
 **Type:** core
 
 
@@ -179,33 +177,33 @@
 
 
 **Id:** R_AI_2
-**Text:** AI with difficulty 'easy' MUST use a simple heuristic-based move selection.
+**Text:** AI with difficulty 'easy' MUST use a simple evaluation that prioritizes nearest exit path with minimal branching.
 **Type:** core
 
 
 **Id:** R_AI_3
-**Text:** AI with difficulty 'medium' MUST use a constrained search (minimax with pruning) to depth 4.
+**Text:** AI with difficulty 'medium' MUST consider at least two candidate moves and evaluate paths toward exit rails.
 **Type:** core
 
 
 **Id:** R_AI_4
-**Text:** AI with difficulty 'hard' MUST use an advanced search (minimax with iterative deepening or MCTS) with seedable randomness for reproducibility.
+**Text:** AI with difficulty 'hard' MUST perform deeper search with pruning and rock blocker shelf considerations.
 **Type:** core
 
 
 ## End Conditions
 
 **Win:**
-  **Condition:** human_courier_reaches_throne
-  **Check Logic:** Courier token on throne tile after human move
+  **Condition:** human_reaches_exit
+  **Check Logic:** Any human cart on exit rail cell
   **Priority:** immediate
 **Lose:**
-  **Condition:** ai_rival_guard_catches_courier or human_no_moves
-  **Check Logic:** Guard occupies courier tile or no legal human moves
+  **Condition:** ai_reaches_exit
+  **Check Logic:** Any AI cart on exit rail cell
   **Priority:** immediate
 **Draw:**
-  **Condition:** no_legal_moves_for_both_or stalemate after a full round
-  **Check Logic:** No moves available for both sides
+  **Condition:** no_legal_moves_for_both_sides OR both_reach_exit_simultaneously
+  **Check Logic:** End-turn evaluation shows no winner
   **Priority:** end_turn
 
 ## Ui
@@ -224,7 +222,7 @@
   - Highlight valid moves
   - Animate AI move
   - Show AI thinking state
-  - Display winner message
+  - Display winner/loser modal
 **Board Style:**
   **Cell Size:** 48
   **Grid Line Color:** #333333
@@ -258,24 +256,24 @@
 **Then:** Expected result with specific values
 
 
-**Given:** A valid capture exists per game rules
-**When:** Player performs a capturing move
-**Then:** Captured pieces/territory updated exactly as defined
+**Given:** A valid move exists per game rules
+**When:** Player performs a valid move
+**Then:** State updates deterministically and logs the action
 
 
 **Given:** AI's turn, difficulty='easy'
 **When:** AI calculates move
-**Then:** AI uses simple algorithm, makes valid move within 2s
+**Then:** AI selects a valid move within 2 seconds and updates state deterministically
 
 
 **Given:** AI can win in 1 move
 **When:** AI's turn, difficulty='medium' or 'hard'
-**Then:** AI MUST execute winning move
+**Then:** AI MUST execute a winning move if available
 
 
 **Given:** Human can win next turn
 **When:** AI's turn, difficulty='medium' or 'hard'
-**Then:** AI MUST block human's winning move
+**Then:** AI MUST block human's winning move if possible
 
 
 ## Config
