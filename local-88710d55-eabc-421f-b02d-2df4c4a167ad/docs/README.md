@@ -1,0 +1,1 @@
+Rock Paper Scissors is a quick, head-to-head game where two players secretly choose rock, paper, or scissors and reveal their choice simultaneously. Rock crushes Scissors, Scissors cut Paper, and Paper covers Rock. Play a best-of-three series to decide the winner, using intuition and luck.
