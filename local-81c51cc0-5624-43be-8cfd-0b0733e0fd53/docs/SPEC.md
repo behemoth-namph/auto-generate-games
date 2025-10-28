@@ -1,17 +1,17 @@
-# Dungeon Door Shuffle
+# Maze Runner Grid
 
 ## Meta
 
-**Game Name:** Dungeon Door Shuffle
+**Game Name:** Maze Runner Grid
 **Game Type:** board
 **Player Mode:** player_vs_ai
 **Players:**
   **Human:** 1
   **Ai:** 1
-**Core Mechanic:** Players move keys to their matching doors on a 5x5 grid by selecting a key and dragging to an adjacent cell or along a valid sequence; AI may hide a decoy door every few turns to mislead the player.
+**Core Mechanic:** A deterministic turn-based maze puzzle on a 9x9 grid where the human runner seeks a path to the exit by rotating and placing path tiles. The AI intermittently adds wandering walls to complicate connectivity, requiring the human to adapt the route in real-time.
 **Session Minutes:**
-  - 10
-  - 30
+  - 5
+  - 15
 
 ## State
 
@@ -19,13 +19,9 @@
   **Type:** grid
   **Topology:** square
   **Dimensions:**
-    - 5
-    - 5
-  **Neighbors:**
-    - up
-    - down
-    - left
-    - right
+    - 9
+    - 9
+  **Neighbors:** for grid: ['up','down','left','right']
 **Entities:**
   **Name:** Player
   **Properties:**
@@ -37,9 +33,6 @@
     **Pieces Played:** 0
   **Name:** AI
   **Properties:**
-    **Id:** 2
-    **Type:** ai
-    **Color:** #ffffff
     **Algorithm:** minimax
     **Difficulty:** medium
     **Depth:** 4
@@ -53,17 +46,17 @@
     **Is Thinking:** False
   **Name:** Board
   **Properties:**
-    **Grid:** 2D array of tokens; 0 = empty; positive integers = keys/doors; matching key/door pairs share an id; decoy doors flagged
-    **Rows:** 5
-    **Cols:** 5
+    **Grid:** 9x9 array of path/wall tiles; each cell stores tile type, rotation, and occupancy
+    **Rows:** 9
+    **Cols:** 9
   **Initial State:**
 
   **Name:** Game
   **Properties:**
-    **Current Player:** int (1 or 2)
-    **Status:** string (playing|human_wins|ai_wins|draw)
-    **Move Count:** int
-    **Last Move:** object
+    **Current Player:** 1
+    **Status:** playing
+    **Move Count:** 0
+    **Last Move:** None
   **Initial State:**
     **Current Player:** 1
     **Status:** playing
@@ -72,15 +65,14 @@
 ## Mechanics
 
 **Setup:**
-  **Initial Placement:** 5x5 grid seeded with an equal number of key tokens and matching door tokens placed such that each key has a unique matching door; a subset of doors may be hidden as decoys by AI every few turns. Human (Player 1) starts first.
+  **Initial Placement:** Runner token placed at (0,0); exit at (8,8); initial path tiles arranged to form at least one valid route; AI wandering walls inactive until after the first few human moves
   **Starting Player Rule:** human
 **Move Validation:**
   **Must Place On Empty:** True
   **Validity Checks:**
-    - the moved key must end on its matching door
-    - path must be a continuous sequence of adjacent cells
-    - no overlapping with other keys/doors except for the target door when capturing
-    - drag sequences must end on a valid matching door for each key moved in the sequence
+    - placement maintains at least one valid path from runner to exit after the move
+    - tile rotation is within allowed states
+    - no overlapping tiles or tiles placed outside the 9x9 grid
   **Validation Algorithm:**
     **Name:** path_check
     **Inputs:**
@@ -98,23 +90,21 @@
         - left
         - right
       **Min Chain Length:** 1
-      **Require Bounded:** False
+      **Require Bounded:** True
       **Gravity:** False
     **Steps:**
-      - Verify selected token is a movable key belonging to current player
-      - Trace the proposed path for each key moved; ensure each step is within bounds and on empty cells or allowed target
-      - Ensure final targets are their respective matching doors
-      - If any move invalid, reject with error code/message
+      - Identify target cell; ensure empty slot
+      - Simulate tile placement/rotation
+      - Compute connectivity from runner to exit
+      - If connected, return is_valid = true with a preview of resulting path
 **Movement:**
-  **Allowed:** step|drag_sequence
+  **Allowed:** placement|rotate
   **Directions:**
-    - up
-    - down
-    - left
-    - right
-  **Range:** any for drag sequences; 1 for single-step moves
+    - rotate_tile
+    - drag_to_place
+  **Range:** 1
 **Capture:**
-  **Type:** match_placement
+  **Type:** area_conversion
   **Directions:**
     - up
     - down
@@ -122,10 +112,10 @@
     - right
   **Require Sandwich:** False
   **Chain Capture:** False
-  **Min Chain Length:** 1
-  **Result:** When a key is moved to its matching door, the key is removed and the door is considered opened; scoring increments for the player. Decoy doors may be revealed/hidden by AI as per turn rules.
+  **Min Chain Length:** 2
+  **Result:** AI wandering walls are added to random empty tiles; paths may be closed or opened
   **Capture Algorithm:**
-    **Name:** apply_match_and_open
+    **Name:** apply_wandering_walls
     **Inputs:**
       - row
       - col
@@ -133,28 +123,27 @@
       - board
       - parameters
     **Outputs:**
-      **Opened Pairs:** int
-      **Updated Board:** object
+      **Affected Count:** int
     **Parameters:**
       **Directions:**
         - up
         - down
         - left
         - right
-      **Min Chain Length:** 1
+      **Min Chain Length:** 2
       **Require Bounded:** False
     **Steps:**
-      - Identify all key-to-door match placements in the move sequence
-      - For each matched pair, remove the key token from its origin
-      - Mark the target door as opened and locked state updated
-      - Update the player's score by 1 per matched pair
+      - Increment move counter to determine wandering interval
+      - Choose candidate empty cells based on a simple heuristic
+      - Place wall tiles in chosen cells
+      - Update board state and recalculate connectivity where needed
 **Turn Flow:**
   **Switch After Move:** True
   **Pass If No Valid Move:** True
   **Extra Turn Conditions:** end game after two consecutive passes
 **Scoring:**
-  **Method:** points
-  **Winner Determination:** player with the higher score when all pairs are matched or no legal moves remain; ties possible
+  **Method:** path_connectivity
+  **Winner Determination:** If human runner reaches exit, human wins; if exit becomes permanently unreachable due to walls and AI cannot create a new valid path, AI wins; draw if no legal moves exist for both players during a full round
 
 ## Turns
 
@@ -163,26 +152,29 @@
 **Actions:**
   **Name:** player_move
   **Parameters:**
-    - move_payload
-  **Condition:** current_player == 1 AND game.status == 'playing' AND there exists at least one valid move for Player 1
+    - tile_id
+    - rotation
+    - target_row
+    - target_col
+  **Condition:** current_player == 1 AND game.status == playing AND [move validity conditions]
   **Result:** Apply mechanics.move_validation and mechanics.capture; update state; switch to AI; check end conditions
   **Name:** ai_move
   **Parameters:**
     - (None)
-  **Condition:** current_player == 2 AND game.status == 'playing'
+  **Condition:** current_player == 2 AND game.status == playing
   **Result:** AI calculates move using algorithm; apply mechanics.move_validation and mechanics.capture; update state; switch to human; check end conditions
   **Name:** restart
   **Parameters:**
     - (None)
-  **Condition:** game.status != 'playing'
+  **Condition:** game.status != playing
   **Result:** Reset all state to initial values
 
 ## Rules
 
 
 **Id:** R1
-**Text:** Clear, testable rule with input/output MUST define concrete preconditions, targets, and outcomes.
-**Type:** core
+**Text:** Clear, testable rule with input/output MUST.
+**Type:** core|validation|optional
 
 
 **Id:** R_AI_1
@@ -191,33 +183,33 @@
 
 
 **Id:** R_AI_2
-**Text:** AI with difficulty 'easy' MUST use a simple heuristic: choose the first valid move found.
+**Text:** AI with difficulty 'easy' MUST use a simple heuristic without deep search.
 **Type:** core
 
 
 **Id:** R_AI_3
-**Text:** AI with difficulty 'medium' MUST use a moderate depth search with pruning to choose a scoring move.
+**Text:** AI with difficulty 'medium' MUST use a moderate-depth search strategy.
 **Type:** core
 
 
 **Id:** R_AI_4
-**Text:** AI with difficulty 'hard' MUST use an advanced look-ahead strategy (e.g., minimax with multi-ply evaluation) and consider decoy door timing.
+**Text:** AI with difficulty 'hard' MUST use an advanced search with pruning and lookahead.
 **Type:** core
 
 
 ## End Conditions
 
 **Win:**
-  **Condition:** human_pieces_matched == total_pairs
-  **Check Logic:** All key-door pairs are successfully matched by the human side
+  **Condition:** human_reaches_exit
+  **Check Logic:** If the runner token occupies the exit cell (8,8) on human turn or after a valid move
   **Priority:** immediate
 **Lose:**
-  **Condition:** ai_pieces_matched == total_pairs
-  **Check Logic:** All key-door pairs are successfully matched by the AI side
+  **Condition:** ai_blocks_all_paths
+  **Check Logic:** If there exists no valid path from runner to exit and human has exhausted legal moves
   **Priority:** immediate
 **Draw:**
-  **Condition:** no_legal_moves_for_both_players
-  **Check Logic:** End-turn condition where both players have zero legal moves
+  **Condition:** no_legal_moves_after_round
+  **Check Logic:** If after a full cycle both players have no legal moves
   **Priority:** end_turn
 
 ## Ui
@@ -229,15 +221,14 @@
   - Game status message
   - Restart button
 **Interactions:**
-  - Click/tap to select and move a key
-  - Drag to create a move sequence
-  - Hover for move previews
+  - Click/tap to place or rotate a tile
+  - Hover for preview/hints
   - Click restart button
 **Feedback:**
   - Highlight valid moves
   - Animate AI move
   - Show AI thinking state
-  - Display winner/loser/draw messages
+  - Display winner/loser/draw message
 **Board Style:**
   **Cell Size:** 48
   **Grid Line Color:** #333333
@@ -271,24 +262,24 @@
 **Then:** Expected result with specific values
 
 
-**Given:** A valid capture exists per game rules
-**When:** Player performs a capturing move
-**Then:** Captured pieces updated exactly as defined (key removed, door opened, score incremented)
+**Given:** A valid placement exists per game rules
+**When:** Player places or rotates a tile
+**Then:** Board updates accordingly and path validity is re-evaluated
 
 
 **Given:** AI's turn, difficulty='easy'
 **When:** AI calculates move
-**Then:** AI uses simple algorithm, makes valid move within 2s
+**Then:** AI uses simple heuristic and returns a valid move within 2s
 
 
 **Given:** AI can win in 1 move
 **When:** AI's turn, difficulty='medium' or 'hard'
-**Then:** AI MUST execute a winning move if available
+**Then:** AI MUST execute a winning or blocking move if available
 
 
 **Given:** Human can win next turn
 **When:** AI's turn, difficulty='medium' or 'hard'
-**Then:** AI MUST avoid or block human's impending winning move when possible
+**Then:** AI MUST attempt to block human's winning path
 
 
 ## Config
