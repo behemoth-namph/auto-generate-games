@@ -1,0 +1,1 @@
+Rock Paper Scrissors is a fast two-player duel where each round both players secretly choose rock, paper, or scissors and reveal at the same time. The winner is determined by the classic rules: rock beats scissors, scissors beats paper, and paper beats rock; ties occur when both players choose the same option.
