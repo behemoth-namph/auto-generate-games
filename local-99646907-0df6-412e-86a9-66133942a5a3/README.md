@@ -1,0 +1,1 @@
+Battleship on a 10x10 grid. Place your ships by clicking to select and dragging orientation before starting, then click cells to fire at the enemy grid. The AI tracks hits and misses and uses a simple targeting strategy to pursue ships. The goal is to sink all enemy ships before they sink yours. All ships, shots, and hits are drawn on Canvas with clear indicators and a tidy grid.
