@@ -1,0 +1,1 @@
+On a 7x7 grid, colored dot pairs appear. You draw non-crossing paths by dragging from one dot to its partner; paths fill empty cells and cannot overlap. Complete all pairs to fill the grid. Controls: click and drag to draw, release to finish a path; optional move limit adds challenge.
