@@ -1,0 +1,1 @@
+On a fixed 6x6 grid, swap adjacent gems to form lines of three or more. Click a gem to select, then click a neighboring gem to swap; matches disappear, gravity pulls others downward, and new gems refill from the top. The goal is to clear the board within a limited move count, using only mouse input.
