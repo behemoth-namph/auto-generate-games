@@ -1,0 +1,1 @@
+A simplified 6x6 chess emerges with a friendly AI. Click to select a piece, then click a target square to move; moves are limited to clear, easy rules. Captures remove opponent pieces and turns alternate. You may also drag a piece to a valid destination for a tactile feel.
