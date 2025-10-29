@@ -1,0 +1,1 @@
+Arrange ships on a hidden 10x10 grid and challenge a simple AI. Place ships by clicking cells or dragging to set length and orientation. After setup, switch to firing mode and click cells to launch shots. The game tracks hits, misses, and sunks until all ships are found.
