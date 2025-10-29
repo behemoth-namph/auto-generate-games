@@ -1,1 +1,0 @@
-A grid based Minesweeper style puzzle on a selectable size board. Left click to reveal cells showing numbers, right click to flag suspected mines. Avoid detonating a mine and reveal all safe cells to win. Uses simple clicks and optional drag to pan the view.

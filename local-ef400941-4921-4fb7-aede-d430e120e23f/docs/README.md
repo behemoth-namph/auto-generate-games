@@ -1,0 +1,1 @@
+A compact Klondike style solitaire on a grid. Cards sit in columns with a stock and waste area. Click and drag cards to move to foundations or between columns; simple taps can move eligible cards. The aim is to build each suit from Ace to King in order.
