@@ -1,0 +1,1 @@
+A single player domino placement puzzle on a grid. You have a stack of domino tiles and must place them so adjacent halves match numbers, forming a continuous path from start to finish. Drag dominoes onto the board and rotate as needed to fit.
