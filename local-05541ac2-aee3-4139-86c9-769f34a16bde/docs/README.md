@@ -1,0 +1,1 @@
+A solo numeric puzzle on a grid where you place numbered tiles so each row and column sums to a target. Click to place a tile from a small set, then drag to adjust before final placement. After each move, the game checks sums and reveals new targets for the next level.
