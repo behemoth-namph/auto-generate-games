@@ -1,0 +1,1 @@
+Rock Paper Scissors is a fast, classic two-player game of simple strategy. Each round you secretly choose rock, paper, or scissors and reveal simultaneously. Rock beats Scissors, Scissors beat Paper, and Paper beats Rock; same choice ties. Play best-of-N or timed rounds to accumulate wins.
