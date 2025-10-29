@@ -1,0 +1,1 @@
+A grid-based memory game where tiles hide images. Click two tiles to flip them; if they match, they stay revealed, otherwise they flip back. Clear all pairs to win. The board can scale from 4x4 up to 6x6 to adjust difficulty, and controls are entirely mouse-driven.
