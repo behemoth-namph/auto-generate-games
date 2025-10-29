@@ -1,0 +1,1 @@
+A solo take on Connect Four on a 7 by 6 grid against a basic AI. Click a column to drop your token; the AI responds with a valid placement. The objective is to connect four in a row, column, or diagonal before the AI does.
