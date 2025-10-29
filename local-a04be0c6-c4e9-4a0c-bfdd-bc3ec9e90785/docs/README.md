@@ -1,0 +1,1 @@
+Sudoku challenges players to fill a 9x9 grid so every row, column, and 3x3 box contains digits 1 through 9 without repetition; use logic and elimination to deduce correct placements.
