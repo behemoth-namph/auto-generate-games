@@ -1,0 +1,1 @@
+Race across an 8x8 grid from left to right against a simple AI. Drag a path for your token; after release, the token follows the path, one cell per tick. AI moves toward the right edge with a basic path. The first to reach the far edge wins; walls and gaps block progress; mouse input only.
