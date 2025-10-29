@@ -1,0 +1,1 @@
+In Ninja, you slip through feudal landscapes using stealth, timing, and fast reflexes. Move in shadows, silently eliminate guards with precise sword strikes or throwing stars, dodge traps, and complete missions by maintaining stealth, uncovering clues, and escaping before alarms trip.
