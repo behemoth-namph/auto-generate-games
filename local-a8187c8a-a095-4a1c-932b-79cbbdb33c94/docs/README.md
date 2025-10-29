@@ -1,0 +1,1 @@
+A classic sliding block puzzle on a grid. Move blocks by dragging or clicking to slide them one space at a time, creating a path for a goal token from start to exit. Simple rules, clear objective, and grid based visibility make it immediately approachable.
