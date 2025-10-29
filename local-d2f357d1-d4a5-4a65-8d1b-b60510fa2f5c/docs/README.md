@@ -1,0 +1,1 @@
+A color bubble puzzle on a grid. Click to shoot a bubble from the top toward the cluster and aim to connect three or more of the same color. When connected, bubbles pop and others cascade downward. The game remains single player with no opponents.
