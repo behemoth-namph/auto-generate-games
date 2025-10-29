@@ -1,0 +1,1 @@
+A classic 15 puzzle on a 4x4 grid with tiles 1 through 15 and one empty space. Click a tile adjacent to the empty slot to slide it into place, or drag toward the gap. The goal is to arrange tiles in ascending order from left to right, top to bottom.
